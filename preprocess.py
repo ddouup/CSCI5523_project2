@@ -1,5 +1,5 @@
 import numpy as np
-import codecs, sys, os, re, html
+import codecs, sys, os, re, math, csv
 
 from PorterStemmer import PorterStemmer
 from bs4 import BeautifulSoup
@@ -13,7 +13,8 @@ def main():
     p = PorterStemmer()
 
     word_space = []
-    articles = {}
+    id_class = {}
+    id_content = {}
 
     for file in os.listdir(FILE_PATH):
         filename = os.fsdecode(file)
@@ -28,6 +29,7 @@ def main():
                 topics = article.topics.contents
 
                 if len(topics) == 1:
+                    # Selecting the Subset of the Dataset for Clustering
                     ID = article.get('newid')
                     label = topics[0].contents[0]
                     content = article.body
@@ -56,11 +58,58 @@ def main():
                             else:
                                 continue
 
-    #word_space_count = {k: v for k, v in Counter(word_space).items() if v >= 5}
-    #a = OrderedDict(sorted(word_space_count.items(), key=lambda t: -t[1]))
+                        id_class[ID] = label
+                        id_content[ID] = Counter(stem_word)
+    
+    sorted_id_class = OrderedDict(sorted(id_class.items(), key=lambda t: int(t[0])))
+    
+    print('Writing to: reuters21578.class')
 
-    word_space_count = OrderedDict((k,v) for k, v in sorted(Counter(word_space).items(),  key=lambda t: -t[1]) if v>=5) #Eliminate any tokens that occur less than 5 times.
-    print(word_space_count)
+    class_file = open('reuters21578.class', 'w')
+    for k, v in sorted_id_class.items():
+        class_file.write(k+','+v+'\n')
+    class_file.close()
+
+
+    #Eliminate any tokens that occur less than 5 times
+    sorted_word_freq = OrderedDict((k,v) for k, v in sorted(Counter(word_space).items(), key=lambda t: t[1]) if v>=5)
+    #print(sorted_word_freq)
+    word_dimension = OrderedDict()
+    dimension = 0
+
+    for k,v in sorted_word_freq.items():
+        word_dimension[k] = dimension
+        dimension +=1
+
+    #print(word_dimension)
+    print('Writing to: reuters21578.clabel')
+    clabel_file = open('reuters21578.clabel', 'w')
+    for k, v in word_dimension.items():
+        clabel_file.write(k+','+str(v)+'\n')
+    clabel_file.close()
+
+    # Vector Representations
+    sorted_id_content = OrderedDict(sorted(id_content.items(), key=lambda t: int(t[0])))
+
+    freq_csv = open('freq.csv', 'w')
+    sqrtfreq_csv = open('sqrtfreq.csv', 'w')
+    log2freq_csv = open('log2freq.csv', 'w')
+    print('Writing to: freq.csv, sqrtfreq.csv, log2freq.csv')
+
+    for k,words in sorted_id_content.items():
+        for w,freq in words.items():
+            if w in word_dimension:
+                freq_csv.write(k+','+str(word_dimension[w])+','+str(freq)+'\n')
+
+                sqrtfreq = 1+math.sqrt(freq)
+                sqrtfreq_csv.write(k+','+str(word_dimension[w])+','+str(sqrtfreq)+'\n')
+
+                log2freq = 1+math.log2(freq)
+                log2freq_csv.write(k+','+str(word_dimension[w])+','+str(log2freq)+'\n')
+
+    freq_csv.close()
+    sqrtfreq_csv.close()
+    log2freq_csv.close()
 
 
 if __name__ == '__main__':
